@@ -3,6 +3,8 @@ kind: PersistentVolumeClaim
 metadata:
   name: prometheus-storage
   namespace: monitoring
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
 spec:
   accessModes:
     - ReadWriteOnce

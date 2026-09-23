@@ -179,7 +179,8 @@ port-forward uniquement, pas d'Ingress. Infrastructure geree par Terraform (`ter
 ## Prerequis
 
 - `az` (connecte, sur l'abonnement cible), `terraform`, `kubectl`
-- Resource group existant avec droits Owner/Contributor
+- Resource group existant, droits Owner (ou Contributor + User Access Administrator :
+  Terraform cree un role assignment sur le Key Vault)
 - Cluster AKS avec OIDC issuer + workload identity actives (fait par Terraform)
 
 ## 1. Provisionner l'infrastructure Azure
@@ -193,6 +194,18 @@ terraform apply
 Variables dans `terraform.tfvars` (non versionne) : `resource_group_name`, `aks_cluster_name`,
 `key_vault_name`.
 
+Recuperer les identifiants reels et les reporter dans l'overlay (clientID, tenantId, keyvaultName
+dans `secretproviderclass.yaml`, client-id dans `patch-alertmanager-serviceaccount.yaml`) :
+
+```bash
+terraform output alertmanager_identity_client_id
+terraform output tenant_id
+terraform output key_vault_name
+```
+
+Ces identifiants changent a chaque `destroy` puis `apply` : les remettre a jour dans l'overlay
+avant de resynchroniser ArgoCD.
+
 ## 2. Recuperer les credentials du cluster
 
 ```bash
@@ -201,6 +214,9 @@ az aks get-credentials --resource-group <resource_group_name> --name <aks_cluste
 ```
 
 ## 3. Deposer le webhook Discord dans Key Vault
+
+Le vault est en mode RBAC : le role "Key Vault Secrets Officer" scope sur le vault est requis
+pour cette commande (Owner sur le resource group ne suffit pas).
 
 ```bash
 az keyvault secret set --vault-name <key_vault_name> \
@@ -253,7 +269,8 @@ kubectl --context aks-tp-monitoring -n monitoring exec deploy/alertmanager -- \
 ## 7. Verification mecanique de l'overlay
 
 ```bash
-kubectl kustomize k8s/overlays/aks | kubeconform -strict -summary
+kubectl kustomize k8s/overlays/aks | kubeconform -strict -summary -schema-location default \
+  -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
 kubectl kustomize k8s/overlays/aks | kube-linter lint -
 cd terraform && terraform fmt -check && terraform validate
 ```
