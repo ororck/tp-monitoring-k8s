@@ -1,0 +1,29 @@
+# Ce pod sert uniquement à déclencher volontairement l'alerte KubePodCrashLooping.
+# Il doit être appliqué et supprimé manuellement (kubectl apply / kubectl delete).
+# Il n'est jamais synchronisé par ArgoCD.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: crashloop-test
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: crashloop-test
+    app.kubernetes.io/part-of: monitoring
+spec:
+  restartPolicy: Always
+  containers:
+    - name: crashloop-test
+      image: busybox:1.36
+      command: ["sh", "-c", "exit 1"]
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi

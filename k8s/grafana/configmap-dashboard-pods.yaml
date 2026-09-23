@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-pods
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: grafana
+    app.kubernetes.io/part-of: monitoring
+data:
+  pods.json: |
+    {
+      "uid": "pods-state",
+      "title": "Etat des pods",
+      "schemaVersion": 39,
+      "time": {"from": "now-6h", "to": "now"},
+      "refresh": "30s",
+      "panels": [
+        {
+          "id": 1,
+          "title": "Pods par phase",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [{"expr": "sum by (phase) (kube_pod_status_phase)", "refId": "A"}]
+        },
+        {
+          "id": 2,
+          "title": "Redémarrages par pod",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [{"expr": "sum by (namespace, pod) (kube_pod_container_status_restarts_total)", "refId": "A"}]
+        },
+        {
+          "id": 3,
+          "title": "Pods non Ready",
+          "type": "stat",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [{"expr": "sum(kube_pod_status_ready{condition=\"false\"} == 1)", "refId": "A"}]
+        },
+        {
+          "id": 4,
+          "title": "Pods en CrashLoopBackOff",
+          "type": "stat",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [{"expr": "sum(kube_pod_container_status_waiting_reason{reason=\"CrashLoopBackOff\"} == 1)", "refId": "A"}]
+        }
+      ]
+    }
