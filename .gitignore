@@ -1,0 +1,4 @@
+.worker-out/
+.env*
+secrets/
+*.tfstate*
