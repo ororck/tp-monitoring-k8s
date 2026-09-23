@@ -157,12 +157,114 @@ kubectl delete -f tests/crashloop-pod.yaml
 
 ```bash
 yamllint .
-kubectl kustomize k8s | kubeconform -summary -kubernetes-version 1.36.0
-kubectl kustomize k8s | kube-linter lint -
+kubectl kustomize k8s/overlays/kind | kubeconform -summary -kubernetes-version 1.36.0
+kubectl kustomize k8s/overlays/kind | kube-linter lint -
 ```
 
 ## 8. Tout supprimer
 
 ```bash
 kind delete cluster --name tp-monitoring
+```
+
+---
+
+# Overlay AKS
+
+Variante Azure de la meme stack, sur `k8s/overlays/aks` : meme base, PVC sur StorageClass Azure Disk
+(`managed-csi`) pour Prometheus/Alertmanager/Grafana, webhook Discord lu depuis Azure Key Vault via
+workload identity et le Secrets Store CSI Driver (aucun Secret Kubernetes cree a la main). Acces par
+port-forward uniquement, pas d'Ingress. Infrastructure geree par Terraform (`terraform/`).
+
+## Prerequis
+
+- `az` (connecte, sur l'abonnement cible), `terraform`, `kubectl`
+- Resource group existant avec droits Owner/Contributor
+- Cluster AKS avec OIDC issuer + workload identity actives (fait par Terraform)
+
+## 1. Provisionner l'infrastructure Azure
+
+```bash
+cd terraform
+terraform init
+terraform apply
+```
+
+Variables dans `terraform.tfvars` (non versionne) : `resource_group_name`, `aks_cluster_name`,
+`key_vault_name`.
+
+## 2. Recuperer les credentials du cluster
+
+```bash
+az aks get-credentials --resource-group <resource_group_name> --name <aks_cluster_name> \
+  --context aks-tp-monitoring
+```
+
+## 3. Deposer le webhook Discord dans Key Vault
+
+```bash
+az keyvault secret set --vault-name <key_vault_name> \
+  --name discord-webhook-url --value '<url du webhook>'
+```
+
+## 4. Installer ArgoCD
+
+```bash
+kubectl --context aks-tp-monitoring create namespace argocd
+
+kubectl --context aks-tp-monitoring apply -n argocd --server-side --force-conflicts \
+  -f https://raw.githubusercontent.com/argoproj/argo-cd/v3.5.3/manifests/install.yaml
+
+kubectl --context aks-tp-monitoring -n argocd wait --for=condition=Available deployment --all --timeout=180s
+```
+
+## 5. Deployer l'overlay AKS
+
+```bash
+kubectl --context aks-tp-monitoring apply -f argocd/application-aks.yaml
+```
+
+## 6. Verifier le deploiement
+
+```bash
+kubectl --context aks-tp-monitoring -n argocd get application monitoring-stack-aks
+# Attendu : SYNC STATUS = Synced, HEALTH STATUS = Healthy
+
+kubectl --context aks-tp-monitoring -n monitoring get pods,pvc
+# Attendu : tous les pods Running, toutes les PVC Bound sur managed-csi
+```
+
+### Verifier l'acces par port-forward
+
+```bash
+kubectl --context aks-tp-monitoring -n monitoring port-forward svc/prometheus 9090:9090 &
+kubectl --context aks-tp-monitoring -n monitoring port-forward svc/alertmanager 9093:9093 &
+kubectl --context aks-tp-monitoring -n monitoring port-forward svc/grafana 3000:3000 &
+```
+
+### Verifier la lecture du webhook depuis Key Vault
+
+```bash
+kubectl --context aks-tp-monitoring -n monitoring exec deploy/alertmanager -- \
+  sh -c 'wc -c < /etc/alertmanager-discord/url'
+# Attendu : taille non nulle, sans afficher le contenu
+```
+
+## 7. Verification mecanique de l'overlay
+
+```bash
+kubectl kustomize k8s/overlays/aks | kubeconform -strict -summary
+kubectl kustomize k8s/overlays/aks | kube-linter lint -
+cd terraform && terraform fmt -check && terraform validate
+```
+
+## 8. Tout supprimer
+
+```bash
+kubectl --context aks-tp-monitoring -n argocd delete application monitoring-stack-aks
+
+cd terraform
+terraform destroy
+
+az keyvault purge --name <key_vault_name>
 ```
