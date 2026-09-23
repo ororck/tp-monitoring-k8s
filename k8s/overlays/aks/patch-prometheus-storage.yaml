@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  strategy:
+    type: Recreate
+  template:
+    spec:
+      securityContext:
+        fsGroup: 65534
+      volumes:
+        - name: storage-volume
+          persistentVolumeClaim:
+            claimName: prometheus-storage
+          emptyDir: null

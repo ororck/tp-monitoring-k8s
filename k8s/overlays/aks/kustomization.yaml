@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+  - pvc-prometheus.yaml
+  - pvc-alertmanager.yaml
+  - pvc-grafana.yaml
+  - secretproviderclass.yaml
+
+patches:
+  - path: patch-prometheus-storage.yaml
+  - path: patch-alertmanager-storage.yaml
+  - path: patch-grafana-storage.yaml
+  - path: patch-alertmanager-workload-identity.yaml
+  - path: patch-alertmanager-serviceaccount.yaml

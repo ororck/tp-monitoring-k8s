@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: monitoring
+spec:
+  strategy:
+    type: Recreate
+  template:
+    spec:
+      securityContext:
+        fsGroup: 65534
+      volumes:
+        - name: alertmanager-storage
+          persistentVolumeClaim:
+            claimName: alertmanager-storage
+          emptyDir: null
