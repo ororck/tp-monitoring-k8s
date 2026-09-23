@@ -1,12 +1,6 @@
-variable "location" {
-  type        = string
-  description = "The Azure region where resources will be created"
-  default     = "westeurope"
-}
-
 variable "resource_group_name" {
   type        = string
-  description = "Name of the resource group"
+  description = "Existing resource group"
 }
 
 variable "aks_cluster_name" {
@@ -27,6 +21,6 @@ variable "aks_node_count" {
 
 variable "aks_vm_size" {
   type        = string
-  description = "VM size for the AKS nodes"
-  default     = "Standard_B2s"
+  description = "Node VM size"
+  default     = "Standard_D2_v3"
 }

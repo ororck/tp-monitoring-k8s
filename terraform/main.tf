@@ -1,12 +1,11 @@
-resource "azurerm_resource_group" "rg" {
-  name     = var.resource_group_name
-  location = var.location
+data "azurerm_resource_group" "rg" {
+  name = var.resource_group_name
 }
 
 resource "azurerm_kubernetes_cluster" "aks" {
   name                = var.aks_cluster_name
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
+  location            = data.azurerm_resource_group.rg.location
+  resource_group_name = data.azurerm_resource_group.rg.name
   dns_prefix          = var.aks_cluster_name
 
   oidc_issuer_enabled       = true
@@ -17,9 +16,10 @@ resource "azurerm_kubernetes_cluster" "aks" {
   }
 
   default_node_pool {
-    name       = "default"
-    node_count = var.aks_node_count
-    vm_size    = var.aks_vm_size
+    name         = "default"
+    node_count   = var.aks_node_count
+    vm_size      = var.aks_vm_size
+    os_disk_type = "Managed"
   }
 
   identity {
@@ -29,8 +29,8 @@ resource "azurerm_kubernetes_cluster" "aks" {
 
 resource "azurerm_key_vault" "kv" {
   name                       = var.key_vault_name
-  location                   = azurerm_resource_group.rg.location
-  resource_group_name        = azurerm_resource_group.rg.name
+  location                   = data.azurerm_resource_group.rg.location
+  resource_group_name        = data.azurerm_resource_group.rg.name
   tenant_id                  = data.azurerm_client_config.current.tenant_id
   sku_name                   = "standard"
   purge_protection_enabled   = false
@@ -42,13 +42,13 @@ data "azurerm_client_config" "current" {}
 
 resource "azurerm_user_assigned_identity" "alertmanager" {
   name                = "alertmanager-identity"
-  location            = azurerm_resource_group.rg.location
-  resource_group_name = azurerm_resource_group.rg.name
+  location            = data.azurerm_resource_group.rg.location
+  resource_group_name = data.azurerm_resource_group.rg.name
 }
 
 resource "azurerm_federated_identity_credential" "alertmanager" {
   name                = "alertmanager-federated-identity"
-  resource_group_name = azurerm_resource_group.rg.name
+  resource_group_name = data.azurerm_resource_group.rg.name
   audience            = ["api://AzureADTokenExchange"]
   issuer              = azurerm_kubernetes_cluster.aks.oidc_issuer_url
   parent_id           = azurerm_user_assigned_identity.alertmanager.id
